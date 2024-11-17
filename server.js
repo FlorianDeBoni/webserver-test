@@ -14,43 +14,55 @@ const server = app.listen(process.env.PORT || 8081, () => {
 const wss = new WebSocket.Server({ server });
 
 // Store all connected clients
-const clients = [];
+let clients = [];
 
 // Handle WebSocket connections
 wss.on('connection', (ws) => {
-    console.log('Client connected');
-
     // Add the new client to the clients array
     clients.push(ws);
 
+    const message = { "type": "number of players", "players": clients.length };
+    broadcast(message);
+
     // Handle incoming messages
     ws.on('message', (message) => {
-        console.log(`Received: ${message}`);
-        // Echo the message back to the client
-        ws.send(`Server says: ${message}`);
-
-        // Broadcast the message to all connected clients
-        broadcast(message);
+        const data = JSON.parse(message);
+        broadcast(data);
     });
 
     // Handle when client disconnects
     ws.on('close', () => {
-        console.log('Client disconnected');
-        // Remove the client from the clients array
         const index = clients.indexOf(ws);
-        if (index !== -1) {
-            clients.splice(index, 1);
+        if ((index == 0) || (index == 1)) {
+            const messageEnd = { "type": "end game", "win": null };
+            broadcast(messageEnd);
         }
+        if (index !== -1) {
+            if (index !== 0 || clients.length <= 1) {
+                clients.splice(index, 1);
+            }
+            else if (clients.length > 2) {
+                clients[0] = clients[2];
+                clients.splice(2, 1);
+            }
+            else {
+                clients = [clients[1]];
+            }
+        }
+        const message = { "type": "number of players", "players": clients.length };
+        broadcast(message);
     });
 });
 
 // Function to broadcast a message to all clients
 function broadcast(message) {
-    clients.forEach((client) => {
+    for (let i = 0; i < clients.length; i++) {
+        client = clients[i];
         if (client.readyState === WebSocket.OPEN) {
-            client.send(`Broadcast: ${message}`);
+            message["id"] = i + 1;
+            client.send(JSON.stringify(message));
         }
-    });
+    };
 }
 
 // Serve a simple response on the root route for HTTP requests
